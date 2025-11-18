@@ -1,48 +1,31 @@
-// Importamos React y hooks de estado y efecto
 import React, { useState, useCallback } from 'react';
-// Importamos componentes básicos de React Native
 import { View, Text, StyleSheet, FlatList, Dimensions, ScrollView } from 'react-native';
-// useRoute -> para recibir parámetros de la navegación
-// useFocusEffect -> ejecuta código cada vez que la pantalla se enfoca
 import { useRoute, useFocusEffect } from '@react-navigation/native';
-// Importamos AsyncStorage para leer los registros guardados localmente
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// Importamos la librería de gráficos (gráfica de línea)
 import { LineChart } from 'react-native-chart-kit'; 
 
-// Obtenemos el ancho de la pantalla del dispositivo
 const screenWidth = Dimensions.get('window').width;
 
-// Definimos el componente principal
 const DetalleGrafica = () => {
-  // useRoute nos permite acceder a los parámetros enviados desde otra pantalla
   const route = useRoute();
-  const { userName } = route.params;  // Nombre del usuario enviado desde la pantalla anterior
+  const { userName } = route.params;
   
-  // Estado local que guardará los registros del usuario (historial IMC)
   const [userRecords, setUserRecords] = useState([]);
 
-  // ----------------------------------------------------------------
-  // 📦 FUNCIÓN: Cargar y filtrar los registros guardados en AsyncStorage
-  // ----------------------------------------------------------------
+  // 🔄 Carga y filtrado inteligente de registros por usuario
   const loadUserRecords = async () => {
     try {
-      // Leemos el objeto "imcRecords" del almacenamiento local
       const stored = await AsyncStorage.getItem('imcRecords');
       if (stored !== null) {
-        // Si existen registros, los convertimos desde JSON a array
         const allRecords = JSON.parse(stored);
         
-        // 1️⃣ Filtramos los registros que pertenecen al usuario actual
+        // 🎯 Filtrado por nombre + ordenamiento cronológico
         const filteredRecords = allRecords
           .filter(record => record.name === userName)
-          // 2️⃣ Ordenamos los registros por fecha (de más antiguo a más reciente)
           .sort((a, b) => new Date(a.date) - new Date(b.date)); 
 
-        // Guardamos los registros filtrados en el estado
         setUserRecords(filteredRecords);
       } else {
-        // Si no hay registros, dejamos el estado vacío
         setUserRecords([]);
       }
     } catch (error) {
@@ -50,20 +33,15 @@ const DetalleGrafica = () => {
     }
   };
 
-  // ----------------------------------------------------------------
-  // 🔄 useFocusEffect: ejecuta loadUserRecords cada vez que la pantalla se muestra
-  // ----------------------------------------------------------------
+  // 📱 Recarga automática cuando la pantalla gana foco
   useFocusEffect(
     useCallback(() => {
       loadUserRecords();
     }, [userName]) 
   );
 
-  // ----------------------------------------------------------------
-  // 📈 FUNCIÓN: Preparar los datos para la gráfica de IMC
-  // ----------------------------------------------------------------
+  // 📊 Transformación de datos para la librería de gráficos
   const getChartData = () => {
-    // Si no hay registros, devolvemos datos vacíos
     if (userRecords.length === 0) {
       return {
         labels: ["Sin datos"],
@@ -71,62 +49,51 @@ const DetalleGrafica = () => {
       };
     }
 
-    // Mostramos solo los últimos 7 registros para no saturar la gráfica
+    // 🔢 Limita a últimos 7 registros para legibilidad
     const recordsToShow = userRecords.slice(-7); 
 
     return {
-      // Etiquetas del eje X: mes/día
+      // 📅 Formatea fechas como "MM/DD" para eje X
       labels: recordsToShow.map(record => 
         new Date(record.date).toLocaleDateString('es-ES', { month: 'numeric', day: 'numeric' })
       ),
       datasets: [
         {
-          // Eje Y: valores de IMC
           data: recordsToShow.map(record => parseFloat(record.imc)),
-          color: (opacity = 1) => `rgba(85, 119, 204, ${opacity})`, // Línea azul
-          strokeWidth: 2, // Grosor de línea
+          color: (opacity = 1) => `rgba(85, 119, 204, ${opacity})`,
+          strokeWidth: 2,
         },
       ],
-      // Leyenda (se muestra sobre la gráfica)
       legend: [`IMC de ${userName}`],
     };
   };
 
-  // Obtenemos los datos procesados
   const chartData = getChartData();
 
-  // ----------------------------------------------------------------
-  // 🎨 CONFIGURACIÓN VISUAL DE LA GRÁFICA
-  // ----------------------------------------------------------------
+  // 🎨 Configuración visual del componente LineChart
   const chartConfig = {
     backgroundColor: '#ffffff',
     backgroundGradientFrom: '#e3e6f3',
     backgroundGradientTo: '#d6dafb',
-    decimalPlaces: 2, // número de decimales en los valores
-    color: (opacity = 1) => `rgba(58, 78, 140, ${opacity})`, // Color del texto y ejes
+    decimalPlaces: 2,
+    color: (opacity = 1) => `rgba(58, 78, 140, ${opacity})`,
     labelColor: (opacity = 1) => `rgba(58, 78, 140, ${opacity})`,
     strokeWidth: 2,
     style: {
       borderRadius: 16
     },
-    // Estilo de los puntos en la gráfica
     propsForDots: {
       r: '6',
       strokeWidth: '2',
       stroke: '#5577cc',
     },
-    // Líneas de fondo del gráfico (cuadrícula)
     propsForBackgroundLines: {
-        strokeDasharray: '0',
+        strokeDasharray: '0', // 🔲 Líneas de cuadrícula continuas
         stroke: '#ccc',
     }
   };
 
-  // ----------------------------------------------------------------
-  // 🧾 TABLA DE REGISTROS (Encabezado y filas)
-  // ----------------------------------------------------------------
-
-  // Componente para los encabezados de la tabla
+  // 🏗️ Componente reutilizable para encabezado de tabla
   const TableHeader = () => (
     <View style={graficaStyles.rowHeader}>
       <Text style={[graficaStyles.headerText, { flex: 1.5 }]}>Fecha</Text>
@@ -136,18 +103,17 @@ const DetalleGrafica = () => {
     </View>
   );
 
-  // Renderiza cada fila del FlatList
+  // 🎪 Renderizado condicional con sistema de colores semánticos
   const renderItem = ({ item }) => {
-    // Detectamos si es el último registro (más reciente)
     const isLatest = item.id === userRecords[userRecords.length - 1]?.id; 
     
-    // Definimos colores según la clasificación del IMC
+    // 🎨 Mapeo de clasificaciones IMC a colores visualmente significativos
     const getClassificationColor = (classification) => {
       switch (classification) {
-        case 'Bajo peso': return '#fce38a'; 
-        case 'Peso normal': return '#a8ebc5'; 
-        case 'Sobrepeso': return '#ffcf7c'; 
-        case 'Obesidad': return '#ff8585'; 
+        case 'Bajo peso': return '#fce38a'; // 🟡 Amarillo - advertencia
+        case 'Peso normal': return '#a8ebc5'; // 🟢 Verde - positivo
+        case 'Sobrepeso': return '#ffcf7c'; // 🟠 Naranja - precaución
+        case 'Obesidad': return '#ff8585'; // 🔴 Rojo - alerta
         default: return 'white';
       }
     };
@@ -157,28 +123,21 @@ const DetalleGrafica = () => {
         style={[
           graficaStyles.row, 
           { backgroundColor: getClassificationColor(item.classification) },
-          isLatest && graficaStyles.latestRow // Aplica borde y sombra al último registro
+          isLatest && graficaStyles.latestRow // 💎 Destaca el registro más reciente
         ]}
       >
-        {/* Fecha formateada */}
         <Text style={[graficaStyles.cellText, { flex: 1.5 }]}>
           {new Date(item.date).toLocaleDateString('es-ES')}
         </Text>
-        {/* Peso */}
         <Text style={[graficaStyles.cellText, { flex: 1, textAlign: 'center' }]}>{item.weight}</Text>
-        {/* IMC */}
         <Text style={[graficaStyles.cellText, { flex: 1, textAlign: 'center', fontWeight: 'bold' }]}>
           {item.imc}
         </Text>
-        {/* Clasificación */}
         <Text style={[graficaStyles.cellText, { flex: 1.5, textAlign: 'right' }]}>{item.classification}</Text>
       </View>
     );
   };
 
-  // ----------------------------------------------------------------
-  // 🧭 INTERFAZ DE LA PANTALLA
-  // ----------------------------------------------------------------
   return (
     <View style={graficaStyles.container}>
       <Text style={graficaStyles.title}>Historial de IMC</Text>
@@ -186,30 +145,29 @@ const DetalleGrafica = () => {
         Progreso de: <Text style={{ fontWeight: 'bold', color: '#3a4e8c' }}>{userName}</Text>
       </Text>
       
-      {/* Si hay al menos 2 registros, mostramos la gráfica */}
+      {/* 📈 Gráfica con scroll horizontal para múltiples puntos */}
       {userRecords.length > 0 && userRecords.length > 1 ? (
         <ScrollView horizontal style={{ marginBottom: 20 }}>
           <View style={graficaStyles.chartWrapper}>
             <LineChart
                 data={chartData}
-                // Ancho dinámico para que se desplace si hay muchos puntos
+                // 📏 Ancho adaptable: mínimo ancho de pantalla o 70px por registro
                 width={Math.max(screenWidth - 30, 70 * userRecords.length)} 
                 height={220}
                 chartConfig={chartConfig}
-                bezier // Hace la línea curva
+                bezier // ➰ Suaviza la línea con curvas Bézier
                 style={graficaStyles.chartStyle}
             />
           </View>
         </ScrollView>
       ) : (
-        // Si hay menos de 2 registros, mostramos un aviso
         <View style={graficaStyles.chartPlaceholder}>
             <Text style={graficaStyles.chartText}>Necesitas al menos 2 registros para ver la gráfica de progreso.</Text>
             <Text style={graficaStyles.chartText}>Actualmente tienes: {userRecords.length} registro(s).</Text>
         </View>
       )}
 
-      {/* TABLA DE REGISTROS */}
+      {/* 📊 Tabla de datos con estado vacío manejado */}
       {userRecords.length > 0 ? (
         <>
           <Text style={graficaStyles.tableTitle}>Detalle de Registros</Text>
@@ -218,7 +176,7 @@ const DetalleGrafica = () => {
             data={userRecords}
             renderItem={renderItem}
             keyExtractor={item => item.id}
-            ListFooterComponent={<View style={{ height: 20 }} />} // Espacio inferior
+            ListFooterComponent={<View style={{ height: 20 }} />}
           />
         </>
       ) : (
@@ -228,9 +186,6 @@ const DetalleGrafica = () => {
   );
 };
 
-// ----------------------------------------------------------------
-// 🎨 ESTILOS VISUALES (con StyleSheet)
-// ----------------------------------------------------------------
 const graficaStyles = StyleSheet.create({
   container: {
     flex: 1,
@@ -253,7 +208,7 @@ const graficaStyles = StyleSheet.create({
   },
   chartWrapper: {
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: 'hidden', // ✂️ Recorta contenido que sobresale de los bordes redondeados
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -274,13 +229,13 @@ const graficaStyles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#5577cc',
-    borderStyle: 'dashed',
+    borderStyle: 'dashed', // ⚫ Borde punteado para indicar área vacía
     padding: 10,
   },
   chartText: {
     fontSize: 16,
     color: '#3a4e8c',
-    fontStyle: 'italic',
+    fontStyle: 'italic', // 🔤 Cursiva para texto informativo
     textAlign: 'center',
   },
   tableTitle: {
@@ -293,11 +248,11 @@ const graficaStyles = StyleSheet.create({
   rowHeader: {
     flexDirection: 'row',
     paddingVertical: 10,
-    borderBottomWidth: 2,
+    borderBottomWidth: 2, // 🟦 Línea más gruesa para encabezado
     borderBottomColor: '#5577cc',
     backgroundColor: '#e3e6f3',
     borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    borderTopRightRadius: 8, // 🔵 Solo redondea esquinas superiores
   },
   headerText: {
     fontSize: 14,
@@ -323,7 +278,7 @@ const graficaStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
-    elevation: 4,
+    elevation: 4, // 💡 Efecto de elevación para registro actual
   },
   cellText: {
     fontSize: 14,
@@ -332,5 +287,4 @@ const graficaStyles = StyleSheet.create({
   }
 });
 
-// Exportamos el componente
 export default DetalleGrafica;

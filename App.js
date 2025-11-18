@@ -1,4 +1,3 @@
-// Importaciones básicas de React y sus hooks
 import React, { useState } from 'react';
 import {
   StyleSheet,
@@ -9,32 +8,28 @@ import {
   Platform,
   TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Para guardar los registros localmente en el dispositivo
-import { NavigationContainer } from '@react-navigation/native'; // Contenedor principal de la navegación
-import { createDrawerNavigator } from '@react-navigation/drawer'; // Navegación lateral tipo cajón
-import { createStackNavigator } from '@react-navigation/stack'; // Navegación apilada entre pantallas
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { NavigationContainer } from '@react-navigation/native';
+import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createStackNavigator } from '@react-navigation/stack';
 
-// Componentes de la app (pantallas)
-import Registros from './registro';       // Vista del historial de IMC
-import DetalleGrafica from './grafica';   // Vista con la gráfica individual del usuario
+import Registros from './registro';
+import DetalleGrafica from './grafica';
 
-// Se crean los objetos de navegación
 const Drawer = createDrawerNavigator();
 const Stack = createStackNavigator();
 
-
-// 🔹 Función que devuelve la fecha actual en formato "YYYY-MM-DD"
+// 🔹 Genera fecha en formato ISO (YYYY-MM-DD) con padding para meses/días de un dígito
 const getTodayDateString = () => {
   const today = new Date();
   const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0'); // Se asegura de tener dos dígitos
+  const month = String(today.getMonth() + 1).padStart(2, '0');
   const day = String(today.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
-// 🔹 Convierte una fecha "YYYY-MM-DD" a formato "DD/MM/YYYY" para mostrarla más amigable
+// 🔹 Convierte formato ISO a formato local (DD/MM/YYYY)
 const formatDateDisplay = (dateString) => {
   if (!dateString) return '';
   const parts = dateString.split('-');
@@ -44,13 +39,7 @@ const formatDateDisplay = (dateString) => {
   return dateString;
 };
 
-
-
-// ==============================
-// 🏠 COMPONENTE PRINCIPAL HOME
-// ==============================
 function HomeScreen() {
-  // Estados del formulario
   const [name, setName] = useState('');
   const [gender, setGender] = useState('Hombre');
   const [weight, setWeight] = useState('');
@@ -58,7 +47,7 @@ function HomeScreen() {
   const [height, setHeight] = useState('');
   const [result, setResult] = useState('IMC');
 
-  // ✅ Verifica si el usuario ya tiene un registro previo y carga su género automáticamente
+  // ✅ Detección inteligente de género basado en registros previos
   const checkExistingUser = async (enteredName) => {
     if (!enteredName.trim()) return;
 
@@ -66,42 +55,37 @@ function HomeScreen() {
       const stored = await AsyncStorage.getItem('imcRecords');
       const records = stored ? JSON.parse(stored) : [];
 
-      // Busca coincidencias de nombre (ignorando mayúsculas/minúsculas)
+      // Búsqueda case-insensitive para mejor UX
       const existing = records.find(
         (r) => r.name.toLowerCase() === enteredName.toLowerCase().trim()
       );
 
       if (existing) {
-        setGender(existing.gender); // Si lo encuentra, establece su género automáticamente
+        setGender(existing.gender); // Auto-completa género si el usuario existe
       }
     } catch (error) {
       console.log('Error al verificar usuario existente:', error);
     }
   };
 
-  // Maneja los cambios en el campo "Nombre"
   const handleNameChange = (text) => {
     setName(text);
-    checkExistingUser(text); // Cada vez que el nombre cambia, se verifica si ya existe
+    checkExistingUser(text);
   };
 
-  // 🔹 Convierte texto en número de forma segura
+  // 🔹 Parsing seguro que retorna null en lugar de NaN
   const parseNumber = (text) => {
     const n = parseFloat(text);
     return isNaN(n) ? null : n;
   };
 
-
-
-  // ===============================
-  // 🧮 Función para calcular el IMC
-  // ===============================
+  // 🧮 Algoritmo principal de cálculo de IMC con validaciones
   const calculateIMC = async () => {
     const w = parseNumber(weight);
     const h = parseNumber(height);
     const a = parseNumber(age);
 
-    // Validaciones básicas de campos
+    // Validación en cascada con mensajes específicos
     if (!name.trim()) {
       setResult('Por favor, ingresa un nombre');
       return;
@@ -117,14 +101,11 @@ function HomeScreen() {
       return;
     }
 
-    // 📅 Se usa la fecha actual automáticamente
     const todayDate = new Date();
-
-    // Cálculo matemático del IMC
     const heightInMeters = h / 100;
     const imc = w / (heightInMeters * heightInMeters);
 
-    // Clasificación de acuerdo al género y valor del IMC
+    // 📊 Tablas de clasificación diferenciadas por género
     let classification = '';
     if (gender === 'Hombre') {
       if (imc < 20) classification = 'Bajo peso';
@@ -138,33 +119,32 @@ function HomeScreen() {
       else classification = 'Obesidad';
     }
 
-    // Crea un nuevo registro con todos los datos del cálculo
+    // 📝 Construcción del objeto de registro con metadata
     const newResult = {
-      id: Date.now().toString(), // Marca de tiempo única
+      id: Date.now().toString(), // Timestamp como ID único
       name: name.trim(),
       gender,
       age: a,
       weight: w,
       height: h,
-      imc: imc.toFixed(2),
+      imc: imc.toFixed(2), // Precisión de 2 decimales
       classification,
-      date: todayDate.toISOString(), // Guarda la fecha exacta en formato ISO
+      date: todayDate.toISOString(), // ISO string para ordenamiento consistente
     };
 
-    // Muestra el resultado en pantalla
     setResult(
       `Nombre: ${name.trim()}\nFecha: ${formatDateDisplay(getTodayDateString())}\nIMC: ${imc.toFixed(
         2
       )} (${classification})`
     );
 
-    // Limpia los campos del formulario
+    // 🧹 Reset del formulario después del cálculo
     setName('');
     setWeight('');
     setHeight('');
     setAge('');
 
-    // Guarda el registro en el almacenamiento local
+    // 💾 Persistencia en AsyncStorage con manejo de errores
     try {
       const stored = await AsyncStorage.getItem('imcRecords');
       const records = stored ? JSON.parse(stored) : [];
@@ -175,32 +155,23 @@ function HomeScreen() {
     }
   };
 
-
-
-  // 🔹 Valida el texto ingresado en los campos numéricos (peso, altura, edad)
+  // 🔐 Validador de input numérico que permite solo un punto decimal
   const handleChangeNum = (setter) => (text) => {
-    const validText = text.replace(/[^0-9.]/g, ''); // Solo permite números y un punto
-    if ((validText.match(/\./g) || []).length > 1) return; // Evita múltiples puntos
+    const validText = text.replace(/[^0-9.]/g, ''); // Regex para caracteres válidos
+    if ((validText.match(/\./g) || []).length > 1) return; // Previene múltiples puntos decimales
     setter(validText);
   };
 
-
-
-  // ====================================
-  // 🧱 INTERFAZ DE LA PANTALLA PRINCIPAL
-  // ====================================
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined} // 🍎 Ajuste específico para iOS
       style={styles.container}
     >
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
-        {/* Cuadro que muestra el resultado */}
         <View style={styles.resultBox}>
           <Text style={styles.resultText}>{result}</Text>
         </View>
 
-        {/* Campo de texto para el nombre */}
         <TextInput
           style={styles.input}
           placeholder="Nombre"
@@ -208,7 +179,6 @@ function HomeScreen() {
           onChangeText={handleNameChange}
         />
 
-        {/* Botones de selección de género */}
         <View style={styles.genderContainer}>
           {['Hombre', 'Mujer'].map((g) => (
             <TouchableOpacity
@@ -225,7 +195,6 @@ function HomeScreen() {
           ))}
         </View>
 
-        {/* Campos numéricos y fecha fija */}
         <View style={styles.inputsContainer}>
           <View style={styles.dateDisplayContainer}>
             <Text style={styles.dateDisplayText}>
@@ -256,7 +225,6 @@ function HomeScreen() {
           />
         </View>
 
-        {/* Botón para calcular el IMC */}
         <TouchableOpacity style={styles.calculateButton} onPress={calculateIMC}>
           <Text style={styles.calculateButtonText}>Calcular IMC</Text>
         </TouchableOpacity>
@@ -265,11 +233,7 @@ function HomeScreen() {
   );
 }
 
-
-
-// ===========================================
-// 📚 Navegación interna entre Registros y Gráfica
-// ===========================================
+// 🏗️ Navegación anidada: Drawer contiene Stack que contiene pantallas
 function RegistrosStack() {
   return (
     <Stack.Navigator>
@@ -279,11 +243,6 @@ function RegistrosStack() {
   );
 }
 
-
-
-// ===========================================
-// 🧭 Navegación principal tipo Drawer (Cajón)
-// ===========================================
 export default function App() {
   return (
     <NavigationContainer>
@@ -295,11 +254,6 @@ export default function App() {
   );
 }
 
-
-
-// ==========================================
-// 🎨 ESTILOS (Diseño visual de la app)
-// ==========================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -313,7 +267,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     marginBottom: 30,
     alignItems: 'center',
-    minHeight: 100,
+    minHeight: 100, // 📏 Espacio garantizado para resultados multilínea
     justifyContent: 'center',
   },
   resultText: {
@@ -329,7 +283,7 @@ const styles = StyleSheet.create({
   },
   genderButton: {
     backgroundColor: '#d6dafb',
-    borderRadius: 25,
+    borderRadius: 25, // 🔵 Forma de píldora
     paddingVertical: 12,
     paddingHorizontal: 30,
     marginHorizontal: 10,
@@ -340,7 +294,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
-    elevation: 8,
+    elevation: 8, // 📱 Sombra pronunciada en Android
   },
   genderText: {
     fontSize: 18,
@@ -367,7 +321,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-  // Muestra la fecha fija (solo visual, no editable)
   dateDisplayContainer: {
     backgroundColor: '#ebeefc',
     borderRadius: 12,
@@ -388,7 +341,7 @@ const styles = StyleSheet.create({
   },
   calculateButton: {
     backgroundColor: '#5577cc',
-    borderRadius: 50,
+    borderRadius: 50, // 🔵 Botón completamente redondeado
     height: 60,
     justifyContent: 'center',
     alignItems: 'center',
@@ -396,7 +349,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
-    elevation: 12,
+    elevation: 12, // 🏔️ Máxima elevación para el CTA principal
   },
   calculateButtonText: {
     fontSize: 22,

@@ -1,41 +1,22 @@
-// Importamos React y algunos hooks de React
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Permite guardar datos localmente
-// Hook para detectar cuando la pantalla se enfoca (similar a componentDidFocus)
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons'; // Librería de íconos de Expo (bonitos y ligeros)
-
-// 📦 Estructura esperada de cada registro guardado:
-// {
-//   id: string,              // identificador único (timestamp)
-//   name: string,            // nombre del usuario
-//   gender: string,          // género
-//   age: number,             // edad
-//   weight: number,          // peso en kg
-//   height: number,          // estatura en metros
-//   imc: string,             // índice de masa corporal calculado
-//   classification: string,  // categoría según el IMC (normal, sobrepeso, etc.)
-//   date: string             // fecha guardada en texto
-// }
+import { Ionicons } from '@expo/vector-icons';
 
 const Registros = () => {
-  // Estado que almacena todos los registros guardados
   const [records, setRecords] = useState([]);
-  // Hook para poder navegar entre pantallas
   const navigation = useNavigation();
 
-  // 🔄 Función para cargar los registros desde AsyncStorage
+  // 🔄 Carga asíncrona con ordenamiento descendente por timestamp
   const loadRecords = async () => {
     try {
-      const stored = await AsyncStorage.getItem('imcRecords'); // Obtiene los registros guardados
+      const stored = await AsyncStorage.getItem('imcRecords');
       if (stored !== null) {
-        // Convierte el texto JSON en un arreglo de objetos
         const parsedRecords = JSON.parse(stored);
-        // Ordena los registros del más reciente al más antiguo (por ID que es el timestamp)
+        // ⏰ Ordena de más reciente a más antiguo usando ID (timestamp)
         setRecords(parsedRecords.sort((a, b) => b.id - a.id));
       } else {
-        // Si no hay nada almacenado, se establece como un arreglo vacío
         setRecords([]);
       }
     } catch (error) {
@@ -43,46 +24,41 @@ const Registros = () => {
     }
   };
 
-  // ⚙️ Hook que ejecuta una función cada vez que la pantalla "Registros" vuelve a estar activa
+  // 📱 Recarga automática al enfocar la pantalla
   useFocusEffect(
     useCallback(() => {
-      loadRecords(); // Carga los registros cada vez que se entra a esta pestaña
+      loadRecords();
     }, [])
   );
 
-  // ❌ Función para eliminar un registro individual según su ID
+  // 🗑️ Eliminación individual con actualización inmediata del estado
   const deleteRecord = async (id) => {
     try {
-      // Se filtran todos los registros excepto el que tenga el ID a eliminar
       const newRecords = records.filter(record => record.id !== id);
-      // Se guardan los registros actualizados
       await AsyncStorage.setItem('imcRecords', JSON.stringify(newRecords));
-      // Se actualiza el estado local para refrescar la lista en pantalla
-      setRecords(newRecords);
+      setRecords(newRecords); // ⚡ Actualización optimista
     } catch (error) {
       Alert.alert('Error', 'No se pudo eliminar el registro.');
       console.log('Error al eliminar registro:', error);
     }
   };
 
-  // ⚠️ Función para eliminar todos los registros almacenados
+  // ⚠️ Modal de confirmación para eliminación masiva
   const deleteAllRecords = () => {
     Alert.alert(
       'Confirmar',
-      '¿Estás seguro de que quieres eliminar TODOS los registros?', // Mensaje de confirmación
+      '¿Estás seguro de que quieres eliminar TODOS los registros?',
       [
         {
           text: 'Cancelar',
-          style: 'cancel', // Cierra el modal sin hacer nada
+          style: 'cancel',
         },
         {
           text: 'Eliminar todo',
-          style: 'destructive', // Muestra el botón rojo
-          onPress: async () => { // Si se confirma, ejecuta la eliminación
+          style: 'destructive', // 🔴 Estilo destructivo nativo
+          onPress: async () => {
             try {
-              // Elimina completamente la clave del almacenamiento
               await AsyncStorage.removeItem('imcRecords');
-              // Limpia el estado local
               setRecords([]);
               Alert.alert('Éxito', 'Todos los registros han sido eliminados.');
             } catch (error) {
@@ -92,23 +68,21 @@ const Registros = () => {
           },
         },
       ],
-      { cancelable: true } // Permite cerrar tocando fuera del modal
+      { cancelable: true } // 👆 Cierre táctil externo
     );
   };
 
-  // 🧱 Función que renderiza cada elemento (tarjeta) dentro de la lista
+  // 🎪 Renderizado de tarjetas con acciones contextuales
   const renderItem = ({ item }) => (
     <View style={registrosStyles.recordCard}>
-      {/* Contenedor con los datos de cada registro */}
       <View style={registrosStyles.infoContainer}>
         <Text style={registrosStyles.recordName}>{item.name}</Text>
         <Text style={registrosStyles.recordDetail}>IMC: {item.imc} ({item.classification})</Text>
         <Text style={registrosStyles.recordDate}>Guardado: {item.date}</Text>
       </View>
 
-      {/* Contenedor con los botones de acción */}
       <View style={registrosStyles.actionsContainer}>
-        {/* 📈 Botón que lleva a la gráfica individual del usuario */}
+        {/* 📈 Navegación parametrizada a gráficas individuales */}
         <TouchableOpacity
           style={registrosStyles.actionButton}
           onPress={() => navigation.navigate('DetalleGrafica', { userName: item.name })}
@@ -116,7 +90,7 @@ const Registros = () => {
           <Ionicons name="stats-chart" size={24} color="#3a4e8c" />
         </TouchableOpacity>
 
-        {/* 🗑️ Botón que elimina este registro */}
+        {/* 🗑️ Eliminación inline con feedback visual */}
         <TouchableOpacity
           style={[registrosStyles.actionButton, { marginLeft: 10 }]}
           onPress={() => deleteRecord(item.id)}
@@ -127,12 +101,11 @@ const Registros = () => {
     </View>
   );
 
-  // 🖼️ Render principal del componente
   return (
     <View style={registrosStyles.container}>
-      {records.length > 0 ? ( // Si hay registros...
+      {records.length > 0 ? (
         <>
-          {/* 🔘 Botón que elimina todos los registros */}
+          {/* 🔘 Botón flotante de eliminación masiva con contador */}
           <TouchableOpacity 
             style={registrosStyles.deleteAllButton} 
             onPress={deleteAllRecords}
@@ -142,16 +115,15 @@ const Registros = () => {
             </Text>
           </TouchableOpacity>
 
-          {/* 📋 Lista con todos los registros */}
           <FlatList
-            data={records} // Fuente de datos
-            renderItem={renderItem} // Cómo se dibuja cada registro
-            keyExtractor={item => item.id} // Clave única
-            contentContainerStyle={{ paddingBottom: 20 }} // Espacio inferior
+            data={records}
+            renderItem={renderItem}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ paddingBottom: 20 }}
           />
         </>
       ) : (
-        // 🕳️ Vista cuando no hay registros guardados
+        // 🕳️ Estado vacío con UX amigable
         <View style={registrosStyles.emptyContainer}>
           <Ionicons name="sad-outline" size={60} color="#5577cc" />
           <Text style={registrosStyles.emptyText}>No hay registros guardados.</Text>
@@ -164,7 +136,6 @@ const Registros = () => {
   );
 };
 
-// 🎨 Estilos visuales de la pantalla
 const registrosStyles = StyleSheet.create({
   container: {
     flex: 1,
@@ -172,7 +143,6 @@ const registrosStyles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 10,
   },
-  // 🕳️ Contenedor mostrado cuando no hay registros
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -191,9 +161,8 @@ const registrosStyles = StyleSheet.create({
     paddingHorizontal: 40,
     marginTop: 5,
   },
-  // 📄 Tarjeta individual del registro
   recordCard: {
-    flexDirection: 'row', // Distribuye info y botones horizontalmente
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: 'white',
@@ -205,7 +174,7 @@ const registrosStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
-    elevation: 3, // Sombra para Android
+    elevation: 3, // 📱 Sombra Android
   },
   infoContainer: {
     flex: 1,
@@ -232,17 +201,16 @@ const registrosStyles = StyleSheet.create({
   actionButton: {
     padding: 8,
   },
-  // 🔘 Botón para eliminar todos los registros
   deleteAllButton: {
-    backgroundColor: '#ffcdd2', // Rojo claro (advertencia)
+    backgroundColor: '#ffcdd2', // 🎨 Color semántico de advertencia
     padding: 10,
     borderRadius: 8,
-    alignSelf: 'flex-end',
+    alignSelf: 'flex-end', // ➡️ Alineación contextual
     marginBottom: 15,
     marginRight: 5,
   },
   deleteAllButtonText: {
-    color: '#d9534f', // Rojo fuerte
+    color: '#d9534f',
     fontWeight: 'bold',
   }
 });
